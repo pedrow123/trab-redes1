@@ -1,16 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <string.h>
 #include <sys/socket.h>
-#include "rawsocket.h"
+#include <sys/types.h>
 
-int main(){
+#include "rawsocket.h"
+#include "controller.h"
+
+
+int main() {
     int sock = ConexaoRawSocket("lo");
-    char arr[256];
+    frame_t* msg;
     printf("Recebendo\n");
-    while(1){
-        recv(sock, arr, sizeof(arr), 0);
-        printf("Recebi: %s\n", arr);
+    while (1) {
+        recv(sock, msg, sizeof(frame_t), 0);
+        if(msg->init_mark == 126){
+            printf("Recebi: %s\n", msg->data);
+        } else {
+            printf("Não recebi info correta\n");
+        }
+
+
+        // if (strcmp(arr, "Lembrando os heróis do passado") == 0) {
+        //     printf("Recebi: %s\n", arr);
+        // } else {
+        //     printf("não esta igual\n");
+        // }
     }
     return 0;
 }

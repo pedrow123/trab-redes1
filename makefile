@@ -2,8 +2,9 @@
 all : client server
 
 rawsocket.o : rawsocket.h
-server.o : server.c rawsocket.h
-client.o : client.c rawsocket.h
+controller.o : controller.h
+server.o : server.c rawsocket.h controller.h
+client.o : client.c rawsocket.h controller.h
 
-server : server.o rawsocket.o 
-client : client.o rawsocket.o
+server : server.o rawsocket.o controller.o
+client : client.o rawsocket.o controller.o
