@@ -10,22 +10,15 @@
 
 int main() {
     int sock = ConexaoRawSocket("lo");
-    frame_t* msg;
+    frame_t msg;
     printf("Recebendo\n");
     while (1) {
-        recv(sock, msg, sizeof(frame_t), 0);
-        if(msg->init_mark == 126){
-            printf("Recebi: %s\n", msg->data);
+        recv(sock, &msg, sizeof(frame_t), 0);
+        if(msg.init_mark == 126){
+            printf("Recebi: %s\n", msg.data);
         } else {
             printf("Não recebi info correta\n");
         }
-
-
-        // if (strcmp(arr, "Lembrando os heróis do passado") == 0) {
-        //     printf("Recebi: %s\n", arr);
-        // } else {
-        //     printf("não esta igual\n");
-        // }
     }
     return 0;
 }

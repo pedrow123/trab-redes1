@@ -13,13 +13,14 @@ int main(){
     char* hino = "Lembrando os heróis do passado";
 
     frame_t* msg = malloc(sizeof(frame_t));
-    msg->init_mark = 126;
+    msg->init_mark = 0b01111110;
     msg->size = strlen(hino);
-    msg->data = hino;
+    strncpy(msg->data, hino, 63);
 
-
-
-    send(sock, msg, sizeof(msg), 0);
+    printf("%ld", sizeof(frame_t));
+    printf("%ld", sizeof(msg));
+    send(sock, msg, sizeof(frame_t), 0);
     printf("Enviando hino");
+    free(msg);
     return 0;
 }
