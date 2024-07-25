@@ -4,11 +4,14 @@
 struct frame {
     unsigned int init_mark : 8;
     unsigned int size : 6;
-    // unsigned int seq : 5;
-    // unsigned int type : 5;
+    unsigned int seq : 5;
+    unsigned int type : 5;
     char data[63];
-    // unsigned int crc : 8;
+    unsigned int crc : 8;
 };
 typedef struct frame frame_t;
+
+unsigned char crc8(frame_t *frame);
+void print_frame (frame_t frame);
 
 #endif
