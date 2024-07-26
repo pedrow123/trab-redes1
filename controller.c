@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
 
 #include "controller.h"
 
@@ -31,4 +34,22 @@ void print_frame (frame_t frame){
     printf("%d - sequencia\n", frame.seq);
     printf("%d - tam\n", frame.size);
     printf("%d - tipo\n", frame.type);
+}
+
+void list_files(const char *path) {
+    struct dirent *entry;
+    DIR *dp = opendir(path);
+
+    if (dp == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dp))) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dp);
 }

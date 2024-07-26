@@ -28,7 +28,7 @@
 //     int retries = 0;
 
 //     frame_t ack_msg;
-    
+
 //     while (1) {
 //         if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
 //             if (ack_msg.init_mark == 126) {
@@ -44,7 +44,6 @@
 //                     msg.size = strlen(msg.data);
 //                     retries++;
 //                     send(sock, &msg, sizeof(frame_t), 0);
-
 
 //                 }
 //             }
@@ -96,7 +95,8 @@
 // //             ack_msg.seq == msg->seq) {
 // //                 printf("ACK recebido\n");
 // //                 ack_received = 1;
-// //             } else if (ack_msg.init_mark == 126 && ack_msg.type == 0b00001 &&
+// //             } else if (ack_msg.init_mark == 126 && ack_msg.type == 0b00001
+// &&
 // //             ack_msg.seq == msg->seq) {
 // //                 printf("NACK recebido, reenviando...\n");
 // //                 attempts++;
@@ -108,7 +108,8 @@
 // //     }
 
 // //     if (!ack_received) {
-// //         printf("Falha ao enviar o frame após %d tentativas\n", max_attempts);
+// //         printf("Falha ao enviar o frame após %d tentativas\n",
+// max_attempts);
 // //     }
 
 // //     free(msg);
@@ -116,34 +117,19 @@
 // //     return 0;
 // // }
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <dirent.h>
 
 #include "controller.h"
 #include "rawsocket.h"
 
-void list_files(const char *path) {
-    struct dirent *entry;
-    DIR *dp = opendir(path);
-
-    if (dp == NULL) {
-        perror("opendir");
-        return;
-    }
-
-    while ((entry = readdir(dp))) {
-        if (entry->d_type == DT_REG) {
-            printf("%s\n", entry->d_name);
-        }
-    }
-
-    closedir(dp);
-}
+#define MAX_PAYLOAD_SIZE 63
+#define MAX_RETRIES 5
 
 int main() {
     int sock = ConexaoRawSocket("lo");
@@ -151,13 +137,13 @@ int main() {
     char file_path[512];
 
     printf("Arquivos disponíveis:\n");
-    list_files("videos");  // Substitua pelo caminho do diretório onde estão os arquivos de texto
+    list_files("videos");  // Substitua pelo caminho do diretório onde estão os
+                           // arquivos de texto
 
     printf("\nDigite o nome do arquivo que deseja transferir: ");
     scanf("%s", file_name);
 
     snprintf(file_path, sizeof(file_path), "%s%s", "videos/", file_name);
-
 
     FILE *file = fopen(file_path, "r");
     if (!file) {
@@ -177,43 +163,56 @@ int main() {
     struct timeval tv;
     tv.tv_sec = 2;  // Timeout de 2 segundos
     tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
 
     frame_t ack_msg;
+    char buffer[256];
 
-    while (fgets(msg.data, sizeof(msg.data), file) != NULL) {
-        msg.size = strlen(msg.data);
-        msg.crc = crc8(&msg);
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        size_t len = strlen(buffer);
+        size_t offset = 0;
 
-        send(sock, &msg, sizeof(frame_t), 0);
-        printf("Enviando: %s\n", msg.data);
+        while (offset < len) {
+            size_t chunk_size = (len - offset) > MAX_PAYLOAD_SIZE
+                                    ? MAX_PAYLOAD_SIZE
+                                    : (len - offset);
+            strncpy(msg.data, buffer + offset, chunk_size);
+            msg.data[chunk_size] = '\0';
+            msg.size = chunk_size;
+            msg.crc = crc8(&msg);
 
-        while (retries < max_retries) {
-            if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
-                if (ack_msg.init_mark == 126) {
-                    if (ack_msg.type == 0b00000) {
-                        printf("\nRECEBI O ACK\n");
-                        break;
-                    } else if (ack_msg.type == 0b00001) {
-                        printf("RECEBI NACK\n");
-                        retries++;
-                        send(sock, &msg, sizeof(frame_t), 0);
+            send(sock, &msg, sizeof(frame_t), 0);
+            printf("Enviando seq %d: %s\n", msg.seq, msg.data);
+
+            retries = 0;
+            while (retries < MAX_RETRIES) {
+                if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
+                    if (ack_msg.init_mark == 126) {
+                        if (ack_msg.type == 0b00000) {
+                            printf("\nRECEBI O ACK para seq %d\n", msg.seq);
+                            break;
+                        } else if (ack_msg.type == 0b00001) {
+                            printf("RECEBI NACK para seq %d\n", msg.seq);
+                            retries++;
+                            send(sock, &msg, sizeof(frame_t), 0);
+                        }
                     }
+                } else {
+                    // Timeout ou erro de recepção
+                    retries++;
+                    send(sock, &msg, sizeof(frame_t), 0);
                 }
-            } else {
-                // Timeout ou erro de recepção
-                retries++;
-                send(sock, &msg, sizeof(frame_t), 0);
             }
-        }
 
-        if (retries == max_retries) {
-            printf("\nFalha após %d tentativas\n", max_retries);
-            break;
-        }
+            if (retries == MAX_RETRIES) {
+                printf("\nFalha após %d tentativas para seq %d\n", MAX_RETRIES,
+                       msg.seq);
+                break;
+            }
 
-        msg.seq++;
-        retries = 0;
+            offset += chunk_size;
+            msg.seq++;
+        }
     }
 
     fclose(file);
