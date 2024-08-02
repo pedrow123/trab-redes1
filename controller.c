@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <time.h>
+
 
 #include "controller.h"
 
@@ -52,4 +56,39 @@ void list_files(const char *path) {
     }
 
     closedir(dp);
+}
+
+unsigned char* read_file_to_buffer(const char *caminho, long *file_size) {
+    FILE *file = fopen(caminho, "rb"); // abrir arquivo em modo binário
+    if (!file) {
+        perror("Erro ao abrir o arquivo");
+        return NULL;
+    }
+
+    // Determinar o tamanho do arquivo
+    fseek(file, 0, SEEK_END);
+    *file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Alocar memória para armazenar o conteúdo do arquivo
+    unsigned char *buffer = (unsigned char *)malloc(*file_size);
+    if (!buffer) {
+        perror("Erro ao alocar memória");
+        fclose(file);
+        return NULL;
+    }
+
+    // Ler o arquivo inteiro para o buffer
+    size_t read_size = fread(buffer, 1, *file_size, file);
+    if (read_size != *file_size) {
+        perror("Erro ao ler o arquivo");
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+
+    // Fechar o arquivo
+    fclose(file);
+
+    return buffer;
 }

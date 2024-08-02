@@ -14,5 +14,6 @@ typedef struct frame frame_t;
 unsigned char crc8(frame_t *frame);
 void print_frame (frame_t frame);
 void list_files(const char *path);
+unsigned char* read_file_to_buffer(const char *caminho, long *file_size);
 
 #endif
