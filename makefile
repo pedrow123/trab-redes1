@@ -21,4 +21,4 @@ client : client.o rawsocket.o controller.o
 
 # Limpar arquivos de objetos e binários
 clean :
-	rm -f *.o server client
+	rm -f *.o

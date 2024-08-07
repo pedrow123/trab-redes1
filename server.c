@@ -1,136 +1,4 @@
 
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <string.h>
-// #include <sys/socket.h>
-// #include <sys/types.h>
-// #include <unistd.h>
-
-// #include "controller.h"
-// #include "rawsocket.h"
-
-// #define WINDOW_SIZE 5
-// #define MAX_PAYLOAD_SIZE 63
-// #define MAX_RETRIES 10
-
-// int main() {
-//     int sock = ConexaoRawSocket("lo");
-//     frame_t msg;
-//     printf("Recebendo\n");
-
-//     // FILE *output_file = fopen("output.txt", "w+");
-//     // if (!output_file) {
-//     //     perror("Erro ao criar o arquivo de saída");
-//     //     return 1;
-//     // }
-
-//     // if (recv(sock, &msg, sizeof(frame_t), 0) < 0) {
-//     //     return 1;
-//     // }
-
-//     // while (msg.type != 0b01010 || msg.init_mark != 126) {
-//     //     if (recv(sock, &msg, sizeof(frame_t), 0) < 0) {
-//     //         return 1;
-//     //     }
-//     // }
-
-//     char diretorio[256] = "videos";
-//     // list_files(diretorio, sock);
-
-//     if (recv(sock, &msg, sizeof(frame_t), 0) < 0) {
-//         return 1;
-//     }
-
-//     while (msg.type != 0b01011 || msg.type != 126) {
-//         if (recv(sock, &msg, sizeof(frame_t), 0) < 0) {
-//             return 1;
-//         }
-//     }
-
-//     printf("caminho: %s\n", msg.data);
-
-//     char caminho[1024];
-//     snprintf(caminho, sizeof(caminho), "%s/%s", diretorio, msg.data);
-
-//     long file_size;
-//     unsigned char *buffer = read_file_to_buffer(caminho, &file_size);
-//     if (!buffer) {
-//         // close(sock);
-//         return 1;
-//     }
-
-//     printf("Arquivo lido com sucesso. Tamanho: %ld bytes\n", file_size);
-
-//     // msg.init_mark = 0b01111110;
-//     // msg.seq = 0;         // Primeiro pacote
-//     // msg.type = 0b10010;  // Tipo dados
-
-//     // int retries = 0;
-
-//     // struct timeval tv;
-//     // tv.tv_sec = 2;  // Timeout de 2 segundos
-//     // tv.tv_usec = 0;
-//     // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv,
-//     sizeof(tv));
-
-//     // frame_t ack_msg;
-
-//     // size_t offset = 0;
-//     // while (offset < file_size) {
-//     //     size_t bytes_to_send = (file_size - offset > MAX_PAYLOAD_SIZE)
-//     //                                ? MAX_PAYLOAD_SIZE
-//     //                                : (file_size - offset);
-//     //     memcpy(msg.data, buffer + offset, bytes_to_send);
-
-//     //     if (bytes_to_send < MAX_PAYLOAD_SIZE) {
-//     //         memset(msg.data + bytes_to_send, '\0',
-//     //                MAX_PAYLOAD_SIZE - bytes_to_send);
-//     //     }
-
-//     //     msg.size = bytes_to_send;
-//     //     msg.crc = crc8(&msg);
-
-//     //     send(sock, &msg, sizeof(frame_t), 0);
-//     //     printf("Enviando seq %d: %.*s\n", msg.seq, (int)bytes_to_send,
-//     //            msg.data);
-
-//     //     retries = 0;
-//     //     while (retries < MAX_RETRIES) {
-//     //         if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
-//     //             if (ack_msg.init_mark == 126) {
-//     //                 if (ack_msg.type == 0b00000) {
-//     //                     printf("\nRECEBI O ACK para seq %d\n", msg.seq);
-//     //                     break;
-//     //                 } else if (ack_msg.type == 0b00001) {
-//     //                     printf("RECEBI NACK para seq %d\n", msg.seq);
-//     //                     retries++;
-//     //                     send(sock, &msg, sizeof(frame_t), 0);
-//     //                 }
-//     //             }
-//     //         } else {
-//     //             // Timeout ou erro de recepção
-//     //             retries++;
-//     //             send(sock, &msg, sizeof(frame_t), 0);
-//     //         }
-//     //     }
-
-//     //     if (retries == MAX_RETRIES) {
-//     //         printf("\nFalha após %d tentativas para seq %d\n",
-//     MAX_RETRIES,
-//     //                msg.seq);
-//     //         break;
-//     //     }
-
-//     //     offset += bytes_to_send;
-//     //     msg.seq++;
-//     // }
-
-//     // free(buffer);
-
-//     // fclose(output_file);
-//     close(sock);
-//     return 0;
-// }
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -177,12 +45,10 @@ int main() {
         }
 
         if (msg.init_mark == 126 &&
-            msg.type == 0b01011) {  // Tipo para receber nome do vídeo
+            msg.type == 0b01011) {  
             printf("Recebi nome do vídeo: %s\n", msg.data);
             strncpy(arquivo, msg.data, strlen(msg.data));
-            // Aqui você pode processar o nome do arquivo ou iniciar o envio do
-            // vídeo
-            break;  // Para o loop após receber o nome do vídeo
+            break;  
         }
     }
 
@@ -200,16 +66,15 @@ int main() {
     printf("Arquivo lido com sucesso. Tamanho: %ld bytes\n", file_size);
 
     msg.init_mark = 0b01111110;
-    msg.seq = 0;         // Primeiro pacote
-    msg.type = 0b10010;  // Tipo dados
+    msg.seq = 0;  // Primeiro pacote
+    msg.type = 0b10010;
 
     int retries = 0;
 
     struct timeval tv;
     tv.tv_sec = 2;  // Timeout de 2 segundos
     tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv,
-    sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
 
     frame_t ack_msg;
 
@@ -219,25 +84,34 @@ int main() {
         size_t bytes_to_send = (file_size - offset > MAX_PAYLOAD_SIZE)
                                    ? MAX_PAYLOAD_SIZE
                                    : (file_size - offset);
-        memcpy(msg.data, buffer + offset, bytes_to_send);
+        unsigned char *escaped_data;
+        size_t escaped_size;
 
-        if (bytes_to_send < MAX_PAYLOAD_SIZE) {
-            memset(msg.data + bytes_to_send, '\0',
-                   MAX_PAYLOAD_SIZE - bytes_to_send);
+        escape_data(buffer + offset, bytes_to_send, &escaped_data,
+                    &escaped_size);
+
+        memcpy(msg.data, escaped_data, escaped_size);
+
+        if (escaped_size < MAX_PAYLOAD_SIZE) {
+            memset(msg.data + escaped_size, '\0',
+                   MAX_PAYLOAD_SIZE - escaped_size);
         }
 
-        msg.size = bytes_to_send;
+        msg.size = escaped_size;
         msg.crc = crc8(&msg);
 
         send(sock, &msg, sizeof(frame_t), 0);
-        printf("Enviando seq %d: %.*s\n", msg.seq, (int)bytes_to_send,
-               msg.data);
+        printf("Enviando seq %d: %.*s\n", msg.seq, (int)escaped_size, msg.data);
+        log_frame("server_log.txt", &msg, "Enviado");
 
         retries = 0;
-        while (retries < MAX_RETRIES) {
+        while (1) {
+            if (retries > MAX_RETRIES)
+                break;
+            
             if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
                 if (ack_msg.init_mark == 126) {
-                    if (ack_msg.type == 0b00000) {
+                    if (ack_msg.type == 0b00000 && ack_msg.seq == msg.seq) {
                         printf("\nRECEBI O ACK para seq %d\n", msg.seq);
                         break;
                     } else if (ack_msg.type == 0b00001) {
@@ -248,7 +122,7 @@ int main() {
                 }
             } else {
                 // Timeout ou erro de recepção
-                retries++;
+                // retries++;
                 send(sock, &msg, sizeof(frame_t), 0);
             }
         }
@@ -259,9 +133,17 @@ int main() {
             break;
         }
 
+
         offset += bytes_to_send;
         msg.seq++;
     }
+
+
+    // Envia um pacote final indicando o fim da transmissão
+    msg.init_mark = 126;
+    msg.type = 0b11110;
+    msg.size = 0;
+    send(sock, &msg, sizeof(frame_t), 0);
 
     free(buffer);
 

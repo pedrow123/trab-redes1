@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdarg.h>
+
 
 #define MAX_PAYLOAD_SIZE 63
 
@@ -41,7 +43,27 @@ void print_frame(frame_t frame) {
     printf("%d - tipo\n", frame.type);
 }
 
-static void aguarda_confirmacao(int sock, frame_t frame) {
+void log_message(const char* filename, const char* format, ...) {
+    FILE* log_file = fopen(filename, "a");
+    if (!log_file) {
+        perror("Erro ao abrir o arquivo de log");
+        return;
+    }
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(log_file, format, args);
+    va_end(args);
+
+    fclose(log_file);
+}
+
+void log_frame(const char* filename, const frame_t* frame, const char* direction) {
+    log_message(filename, "%s Frame - init_mark: 0x%x, type: 0x%x, size: %d, seq: %d, crc: 0x%x, data: %.*s\n",
+                direction, frame->init_mark, frame->type, frame->size, frame->seq, frame->crc, frame->size, frame->data);
+}
+
+void aguarda_confirmacao(int sock, frame_t frame) {
     frame_t response;
 
     if (recv(sock, &response, sizeof(frame_t), 0) < 0) {
@@ -49,8 +71,8 @@ static void aguarda_confirmacao(int sock, frame_t frame) {
         return;
     }
 
-    while (response.init_mark != 126 || response.seq != frame.seq ||
-           response.type != 0b00000) {
+    while (response.init_mark != 126 || response.seq != frame.seq || response.type != 0b00000) {
+        
         // se for nack
         if (response.init_mark == 126 && response.type == 0b00001) {
             send(sock, &frame, sizeof(frame_t), 0);
@@ -137,221 +159,40 @@ int is_valid_filename(const char *filename) {
     return 1;
 }
 
+void escape_data(const unsigned char *input, size_t input_len, unsigned char **output, size_t *output_len) {
+    size_t estimated_len = input_len * 2;
+    unsigned char *escaped_data = (unsigned char *)malloc(estimated_len);
+    size_t j = 0;
 
+    for (size_t i = 0; i < input_len; i++) {
+        if (input[i] == 0x88 && i + 1 < input_len && input[i + 1] == 0x81) {
+            escaped_data[j++] = 0x88;
+            escaped_data[j++] = 0x81;
+            escaped_data[j++] = 0xFF;
+            i++;
+        } else {
+            escaped_data[j++] = input[i];
+        }
+    }
 
-// void enviar_arquivo(int sock, const char *arquivo) {
-//     char caminho[1024];
-//     snprintf(caminho, sizeof(caminho), "videos/%s", arquivo);
+    *output = (unsigned char *)realloc(escaped_data, j);
+    *output_len = j;
+}
 
-//     long file_size;
-//     unsigned char *buffer = read_file_to_buffer(caminho, &file_size);
-//     if (!buffer) {
-//         frame_t error_msg;
-//         error_msg.init_mark = 0b01111110;
-//         error_msg.type = 0b11111;  // Tipo erro
-//         error_msg.seq = 0;
-//         error_msg.size = 1;
-//         error_msg.data[0] = 2;  // Erro: não encontrado
-//         error_msg.crc = crc8(&error_msg);
-//         send(sock, &error_msg, sizeof(frame_t), 0);
-//         return;
-//     }
+void deescape_data(const unsigned char *input, size_t input_len, unsigned char **output, size_t *output_len) {
+    unsigned char *deescaped_data = (unsigned char *)malloc(input_len);
+    size_t j = 0;
 
-//     frame_t msg;
-//     msg.init_mark = 0b01111110;
-//     msg.seq = 0;
-//     msg.type = 0b10010;  // Tipo dados
+    for (size_t i = 0; i < input_len; i++) {
+        if (input[i] == 0x88 && i + 2 < input_len && input[i + 1] == 0x81 && input[i + 2] == 0xFF) {
+            deescaped_data[j++] = 0x88;
+            deescaped_data[j++] = 0x81;
+            i += 2;
+        } else {
+            deescaped_data[j++] = input[i];
+        }
+    }
 
-//     size_t offset = 0;
-//     while (offset < file_size) {
-//         size_t bytes_to_send = (file_size - offset > MAX_PAYLOAD_SIZE)
-//                                    ? MAX_PAYLOAD_SIZE
-//                                    : (file_size - offset);
-//         memcpy(msg.data, buffer + offset, bytes_to_send);
-//         msg.size = bytes_to_send;
-//         msg.crc = crc8(&msg);
-//         send(sock, &msg, sizeof(frame_t), 0);
-
-//         frame_t ack_msg;
-//         if (recv(sock, &ack_msg, sizeof(frame_t), 0) > 0) {
-//             if (ack_msg.init_mark == 126 && ack_msg.type == 0b00000) {  // ACK
-//                 offset += bytes_to_send;
-//                 msg.seq++;
-//             } else if (ack_msg.type == 0b00001) {      // NACK
-//                 send(sock, &msg, sizeof(frame_t), 0);  // Reenviar
-//             }
-//         }
-//     }
-
-//     // Enviar mensagem de fim de transmissão
-//     msg.type = 0b11110;  // Tipo fim tx
-//     msg.size = 0;
-//     msg.crc = crc8(&msg);
-//     send(sock, &msg, sizeof(frame_t), 0);
-
-//     free(buffer);
-// }
-
-// void listar_videos(int sock) {
-//     int seq = 0;
-//     frame_t msg;
-//     msg.init_mark = 0b01111110;
-//     msg.type = 0b10010;  // Tipo lista
-
-//     struct dirent *entry;
-//     DIR *dp = opendir("videos");
-//     if (dp == NULL) {
-//         perror("Erro ao abrir o diretório");
-//         return;
-//     }
-
-//     while ((entry = readdir(dp))) {
-//         if (entry->d_type == DT_REG) {
-//             char *ext = strrchr(entry->d_name, '.');
-//             if (ext && (strcmp(ext, ".mp4") == 0 || strcmp(ext, ".avi") == 0)) {
-//                 strncpy((char *)msg.data, entry->d_name, MAX_PAYLOAD_SIZE);
-//                 msg.size = strlen((char *)msg.data);
-//                 msg.seq = seq;
-
-//                 msg.crc = crc8(&msg);
-//                 printf("Enviando lista: %s\n", msg.data);
-//                 send(sock, &msg, sizeof(frame_t), 0);
-
-//                 aguarda_confirmacao(sock, msg, seq);
-
-//                 seq = (seq + 1) % 32;
-//             }
-//         }
-//     }
-
-//     closedir(dp);
-
-//     printf("Enviei fim tx\n");
-//     // Enviar mensagem de fim de transmissão da lista
-//     msg.type = 0b11110;  // Tipo fim tx
-//     msg.size = 0;
-//     msg.crc = crc8(&msg);
-//     send(sock, &msg, sizeof(frame_t), 0);
-
-//     aguarda_confirmacao(sock, msg, seq);
-
-// }
-
-// void baixar_arquivo(int sock, char *arquivo) {
-//     frame_t msg;
-//     msg.init_mark = 0b01111110;
-//     msg.type = 0b01011;  // Tipo baixar
-//     msg.seq = 0;
-//     strncpy(msg.data, arquivo, MAX_PAYLOAD_SIZE);
-//     msg.size = strlen(msg.data);
-//     msg.crc = crc8(&msg);
-//     printf("mensagem: %s", msg.data);
-//     send(sock, &msg, sizeof(frame_t), 0);
-
-//     FILE *output_file = fopen("teste.txt", "wb");
-//     if (!output_file) {
-//         perror("Erro ao criar o arquivo de saída");
-//         return;
-//     }
-
-//     frame_t response;
-//     while (1) {
-//         if (recv(sock, &response, sizeof(frame_t), 0) > 0) {
-//             if (response.init_mark == 126) {
-//                 if (response.type == 0b10010) {
-//                     fwrite(response.data, 1, response.size, output_file);
-//                     msg.type = 0b00000;  // ACK
-//                 } else if (response.type == 0b11110) {
-//                     break;
-//                 }
-//                 msg.seq = response.seq;
-//                 msg.crc = crc8(&msg);
-//                 send(sock, &msg, sizeof(frame_t), 0);
-//             }
-//         }
-//     }
-
-//     fclose(output_file);
-// }
-
-// void exibir_video(const char *caminho) {
-//     char comando[1024];
-//     snprintf(comando, sizeof(comando), "mpv %s", caminho);
-//     system(comando);
-// }
-
-// void enviar_lista_arquivos(int sock) {
-//     frame_t msg;
-//     msg.init_mark = 0b01111110;
-//     msg.type = 0b01010;  // Tipo lista
-//     msg.seq = 0;
-//     msg.size = 0;
-//     msg.crc = crc8(&msg);
-//     printf("Enviando tipo lista\n");
-//     send(sock, &msg, sizeof(frame_t), 0);
-
-//     frame_t ack_msg;
-
-//     if (recv(sock, &ack_msg, sizeof(frame_t), 0) < 0) {
-//         printf("ERRO\n");
-//         return;
-//     }
-
-//     while (ack_msg.type != 0b00000 && ack_msg.init_mark != 126) {
-//         if (ack_msg.type == 0b00001) {
-//             send(sock, &msg, sizeof(frame_t), 0);
-//         }
-
-//         if (recv(sock, &ack_msg, sizeof(frame_t), 0) < 0) {
-//             printf("ERRO\n");
-//             return;
-//         }
-//     }
-
-//     printf("recebi ack");
-
-//     frame_t response;
-
-//     if (recv(sock, &response, sizeof(frame_t), 0) < 0) {
-//         printf("ERRO\n");
-//         return;
-//     }
-
-//     unsigned int seq = 0;
-
-
-//     while (response.type != 0b11110 || response.init_mark != 126) {
-//         if (response.init_mark == 126 && response.type == 0b10010) {
-//             // if (response.seq == seq) {
-//                 if (response.crc == crc8(&response)) {
-//                     printf("Disponível: %s\n", response.data);
-
-//                     msg.type = 0b00000;
-//                     msg.seq = response.seq;
-
-
-
-//                     send(sock, &msg, sizeof(frame_t), 0);
-
-//                 } else {
-//                     msg.type = 0b00001;
-//                     msg.seq = response.seq;
-
-//                     send(sock, &msg, sizeof(frame_t), 0);
-//                 }
-//             // }
-//         }
-
-//         if (recv(sock, &response, sizeof(frame_t), 0) < 0) {
-//             printf("Erro\n");
-//             return;
-//         }
-//     }
-
-//     msg.type = 0b00000;
-//     msg.seq = seq;
-
-//     send(sock, &msg, sizeof(frame_t), 0);
-
-//     seq = (seq + 1) % 32;
-// }
+    *output = (unsigned char *)realloc(deescaped_data, j);
+    *output_len = j;
+}
